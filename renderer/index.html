@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Warframe Trader</title>
+  <style>
+    :root {
+      --bg: #111317;
+      --panel: #171a20;
+      --line: #2a2f38;
+      --text: #dfe3ea;
+      --muted: #8b93a1;
+      --good: #8fbf8f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.5 "Segoe UI", system-ui, sans-serif;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 { margin: 0; font-size: 16px; letter-spacing: .04em; }
+    .status { color: var(--muted); font-size: 12px; }
+    /* The global button rule is margin-left: auto, which is right for a
+       toolbar and wrong for a form: it throws each button at the far edge and
+       splits the gap between them. A form lays its own controls out. */
+    .signin { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .signin .field { display: flex; flex-direction: column; gap: 4px; }
+    .signin .field span { color: var(--muted); font-size: 11px; }
+    /* Beats the generic input[type=...] width, which is written for a lone
+       paste box further down the sheet and would otherwise win on order. */
+    .signin .field input { width: 230px; }
+    .signin button, #tokenAdvanced button { margin-left: 0; }
+    .signin .actions { display: flex; gap: 8px; }
+    .signin button[type="submit"] { border-color: #3f5f7a; color: var(--text); }
+    .signin button[type="submit"]:hover:not(:disabled) { border-color: #4f9ad8; }
+
+    #tokenAdvanced { margin-top: 14px; }
+    #tokenAdvanced .controls { align-items: flex-end; }
+    #tokenAdvanced input { width: 300px; }
+    details#tokenAdvanced { margin-top: 12px; }
+    details#tokenAdvanced summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+    .note { color: var(--muted); font-size: 11px; max-width: 60ch; margin: 8px 0; }
+    .status.bad { color: #d0785c; }
+    .status.warn { color: #b08a3c; }
+
+    .controls { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+
+    /* What the budget is doing, where it is visible without being in the
+       way: prices arrive while you read the table rather than before it. */
+    .fetchbar {
+      position: relative; height: 20px; padding: 0 18px;
+      display: flex; align-items: center;
+      background: var(--panel); border-bottom: 1px solid var(--line);
+      font-size: 11px; color: var(--muted); overflow: hidden;
+    }
+    .fetchbar span { position: relative; z-index: 1; }
+    .fetchfill {
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+      background: rgba(79, 154, 216, .18);
+      transition: width 240ms ease;
+    }
+
+    .tabs { display: flex; gap: 4px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+    .tab {
+      margin: 0; background: transparent; border: 0; border-bottom: 2px solid transparent;
+      color: var(--muted); padding: 8px 14px; font-size: 13px; cursor: pointer;
+    }
+    .tab.active { color: var(--text); border-bottom-color: #4f9ad8; }
+
+    .combo { position: relative; }
+    /* Closed it reads as a dropdown, because that is what it is. The search
+       only appears once there is a list to search. */
+    .combo-trigger {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      width: 240px; margin: 0; padding: 5px 9px; font-size: 12px; text-align: left;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 3px; cursor: pointer;
+    }
+    .combo-trigger:hover { border-color: var(--muted); }
+    .combo-trigger .caret { color: var(--muted); font-size: 10px; }
+
+    .combo-search {
+      display: block; width: calc(100% - 16px); margin: 8px; padding: 5px 8px; font-size: 12px;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 3px;
+    }
+    .combo-search:focus { outline: none; border-color: #4f9ad8; }
+    /* Sized to its longest entry rather than a fixed 320px, which is what put a
+       sideways scrollbar under it. The gutter for the vertical scrollbar is
+       reserved up front so it is part of that width instead of eating into it,
+       and sideways scrolling is off outright: a menu never needs it. */
+    .combo-list {
+      position: absolute; top: calc(100% + 3px); left: 0; z-index: 60;
+      width: max-content; min-width: 320px; max-width: calc(100vw - 40px);
+      max-height: 380px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable;
+      background: #14161a; border: 1px solid var(--line); border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+    .combo-group {
+      padding: 6px 10px 3px; color: var(--muted);
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .combo-item {
+      display: flex; justify-content: space-between; gap: 16px; white-space: nowrap;
+      padding: 5px 10px; font-size: 12px; cursor: pointer;
+    }
+    .combo-item:hover, .combo-item.active { background: rgba(255,255,255,.06); }
+    .combo-item.chosen { color: #4f9ad8; }
+    .combo-tag { color: var(--muted); font-size: 10px; }
+    /* Every part, so the row answers "what have I got" as well as "what am I
+       missing" - the second question is the first one read backwards. */
+    .parts { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+    .part { font-size: 11px; white-space: nowrap; }
+    .part.have { color: var(--good); }
+    .part.need { color: var(--text); }
+    .part .tick { opacity: .8; }
+    .part .cost { color: var(--muted); }
+    .part.need .cost { color: #d0956c; }
+    .part.have .cost { color: #7ba97e; }
+    .built { color: #6fbf73; font-size: 10px; margin-left: 5px; }
+
+    /* A relic nobody can farm is a different proposition from one they can,
+       and the row should say which without being read twice. */
+    .vaulted {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--muted); border: 1px solid #3a3f47; border-radius: 3px;
+      padding: 0 4px; margin-left: 6px; white-space: nowrap;
+    }
+    .relicsrc { color: var(--muted); font-size: 11px; }
+    .relicsrc .farmable { color: var(--text); }
+    .relicsrc .held { color: var(--good); }
+    .relicsrc .held .count { opacity: .75; margin-left: 1px; }
+
+    /* Sized as a box so names still line up while the images load, and
+       object-fit so a thumbnail that is not square keeps its shape. */
+    .icon {
+      width: 22px; height: 22px; object-fit: contain;
+      vertical-align: middle; margin-right: 7px; flex: none;
+    }
+    /* The flex box goes inside the cell, never on it: a td with display:flex
+       stops being a table cell, so it no longer stretches to the row, and on a
+       narrow window it sat short while every cell after it grew. */
+    .withicon { display: inline-flex; align-items: center; vertical-align: middle; }
+    tr.near td { background: rgba(111, 191, 115, .06); }
+
+    /* Without this a table gives no sign it is alive, which is hard to tell
+       apart from one that has stopped responding. */
+    tbody tr:hover td { background: rgba(255, 255, 255, .05); }
+    /* Only what actually opens something is clickable, and it says so on
+       hover rather than by being a different colour all the time. */
+    .linked { cursor: pointer; }
+    .linked:hover { text-decoration: underline; text-underline-offset: 2px; }
+    tbody tr.near:hover td { background: rgba(111, 191, 115, .13); }
+    tbody tr { transition: background 90ms ease; }
+    .combo-item .count { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .combo-empty { padding: 10px; color: var(--muted); font-size: 12px; }
+
+    select {
+      background: var(--panel); color: var(--text); border: 1px solid var(--line);
+      border-radius: 3px; padding: 5px 8px; font-size: 12px; min-width: 220px;
+    }
+    [hidden] { display: none !important; }
+
+    .presence { display: flex; align-items: center; gap: 7px; }
+    .presence select { min-width: 0; padding: 3px 6px; font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+    .dot.ingame { background: #6fbf73; }
+    .dot.online { background: #4f9ad8; }
+    .dot.invisible { background: #7a7f8a; }
+
+    .card {
+      margin-bottom: 18px; padding: 12px 14px;
+      border: 1px solid var(--line); border-radius: 4px;
+      background: rgba(255,255,255,.02);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 14px; }
+    .card .controls { margin-bottom: 8px; }
+    .card .controls h2 { margin: 0; }
+    input[type="password"],
+    input[type="email"],
+    input[type="text"] {
+      width: 320px; padding: 5px 9px; font-size: 12px;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 3px;
+    }
+    input:focus { outline: none; border-color: #4f9ad8; }
+
+    .rule {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin: 0 0 10px; padding: 10px 12px;
+      border: 1px solid var(--line); border-radius: 4px;
+      background: rgba(255,255,255,.02);
+    }
+    .rule-label { color: var(--muted); font-size: 12px; }
+
+    .actionbar {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px; padding: 8px 12px;
+      border: 1px solid var(--line); border-radius: 4px; font-size: 12px;
+    }
+    .actionbar .check { margin-left: auto; }
+    .actionbar button:disabled { opacity: .45; cursor: default; }
+
+    button.danger { border-color: #6d3b30; color: #d0785c; }
+    button.danger:hover:not(:disabled) { color: #f0a184; }
+
+    .star {
+      margin-left: 0; background: transparent; border: 1px solid var(--line);
+      color: var(--muted); font-size: 14px; line-height: 1; padding: 4px 8px; cursor: pointer;
+    }
+    .star.on { color: #e8c04a; border-color: #e8c04a; }
+
+    input[type="number"] { width: 64px; background: var(--panel); color: var(--text);
+      border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; font-size: 12px; }
+
+    th[data-sort] { cursor: pointer; user-select: none; }
+    th[data-sort]:hover { color: var(--text); }
+
+    .unknown { color: #6f7684; cursor: help; }
+    .mine { color: var(--text); font-weight: 600; }
+    .mine.low { color: #8fbf8f; }
+    .mine.high { color: #d0956c; }
+    .stale { color: #b08a3c; }
+    .stale.bad { color: #b4603c; }
+    .ahead-good { color: var(--good); }
+    .ahead-bad { color: #d0785c; }
+
+    #panel-syndicates [data-extra] { display: none; }
+    #panel-syndicates.show-extras [data-extra] { display: table-cell; }
+
+    .help {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; margin-left: 4px;
+      border: 1px solid var(--muted); border-radius: 50%;
+      color: var(--muted); font-size: 10px; font-weight: 600; cursor: help;
+      position: relative; vertical-align: middle;
+    }
+    .help:hover, .help:focus { color: var(--text); border-color: var(--text); outline: none; }
+    .help::after {
+      content: attr(data-tip); position: absolute; top: calc(100% + 7px); left: 0; z-index: 40;
+      width: max-content; max-width: 340px; padding: 8px 10px;
+      border: 1px solid var(--line); border-radius: 4px; background: #14161a; color: var(--text);
+      font-size: 11px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal;
+      box-shadow: 0 6px 18px rgba(0,0,0,.5); opacity: 0; visibility: hidden;
+    }
+    .help:hover::after, .help:focus::after { opacity: 1; visibility: visible; }
+    .check { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+    td.dim { color: var(--muted); }
+    td.muted { color: var(--muted); }
+
+    button {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      color: var(--muted);
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) { color: var(--text); }
+    button:disabled { opacity: .5; cursor: default; }
+
+    .wrap { padding: 14px 18px; }
+
+    input[type="search"] {
+      width: 280px;
+      padding: 5px 9px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* Green has to mean something, and "this cell contains a number" is not
+       something. It marks money you would gain: a positive profit, the worth
+       of a part you already hold. Every other figure is ordinary text.
+       This rule used to colour every numeric cell, from when the only numeric
+       column was a value. */
+    td.good, span.good { color: var(--good); }
+    td.path { color: var(--muted); font-size: 12px; }
+    .empty { color: var(--muted); padding: 30px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Warframe Trader</h1>
+    <span id="status" class="status">reading the game...</span>
+    <span id="warn" class="status warn" hidden></span>
+    <label class="presence" id="presenceBox" hidden>
+      <span id="presenceDot" class="dot"></span>
+      <select id="presenceStatus" title="What other traders see beside your orders on warframe.market">
+        <option value="ingame">In game</option>
+        <option value="online">Online</option>
+        <option value="invisible">Invisible</option>
+      </select>
+      <span class="help" tabindex="0" data-tip="Every price this app quotes comes from traders who are online, because an offline order is not a trade you can make. Everyone else filters the same way, so while you are invisible your own orders are the ones being skipped.">?</span>
+    </label>
+    <span id="account" class="status"></span>
+    <button id="update" hidden>Check for updates</button>
+    <button id="refresh">Refresh</button>
+  </header>
+
+  <div id="fetchBar" class="fetchbar" hidden>
+    <div id="fetchFill" class="fetchfill"></div>
+    <span id="fetchText"></span>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="holdings">Holdings</button>
+    <button class="tab" data-tab="sets">Sets</button>
+    <button class="tab" data-tab="relics">Relics</button>
+    <button class="tab" data-tab="syndicates">Syndicates</button>
+    <button class="tab" data-tab="account">Account</button>
+  </nav>
+
+  <div class="wrap" id="panel-holdings">
+    <div class="controls">
+      <input id="filter" type="search" placeholder="Filter items..." autocomplete="off">
+      <label class="check"><input id="tradeable" type="checkbox" checked> Tradeable only</label>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Owned</th>
+          <th class="num" title="Cheapest online seller right now">Sell</th>
+          <th class="num" title="Highest online buyer right now">Buy</th>
+          <th class="num" title="Closed sales in the last week">7d</th>
+          <th class="num">Value</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="empty" hidden></div>
+  </div>
+
+  <div class="wrap" id="panel-sets" hidden>
+    <div class="controls">
+      <input id="setFilter" type="search" placeholder="Filter sets..." autocomplete="off">
+      <label class="check">Missing at most <input id="setMaxMissing" type="number" value="0" min="0" max="9"></label>
+      <label class="check"><input id="setHaveSome" type="checkbox"> Only sets I have parts of</label>
+      <label class="check"><input id="setProfitable" type="checkbox"> Only profitable</label>
+      <span id="setStatus" class="status"></span>
+      <span class="legend"><span class="swatch"></span>one part away</span>
+    </div>
+
+    <table id="setGrid">
+      <thead>
+        <tr>
+          <th data-sort="name">Set</th>
+          <th data-sort="held" class="num" title="Parts you already hold, of the parts the set needs">Have</th>
+          <th data-sort="missingCount" title="Every part the set needs. Ticked is one you hold, priced at what it would fetch sold separately; the rest are priced at what they cost to buy.">Components</th>
+          <th data-sort="sourceCount" title="Which relics drop the parts you are missing, farmable ones before vaulted ones. Buying is one way to finish a set; opening the relic is the other.">Drops from</th>
+          <th data-sort="vaulted" title="Vaulted when at least one part no longer drops from any farmable relic, so the set can only be finished by trading. Blank for sets that do not come from relics.">Vaulted</th>
+          <th data-sort="toFinish" class="num" title="Cheapest live asks for the parts you lack. Blank when one of them has no price yet, because a total with a hole in it is a guess.">To finish</th>
+          <th data-sort="sellsFor" class="num" title="What the set actually changes hands for - the weekly median, or the top live buy order when there is no median. Not the cheapest listing, which is one seller's asking price and can be anything.">Sells for</th>
+          <th data-sort="profitToFinish" class="num" title="Set price less what the missing parts cost you">Profit</th>
+          <th data-sort="fromScratch" class="num" title="All parts bought from nothing">From scratch</th>
+          <th data-sort="profitFromScratch" class="num">Profit</th>
+          <th data-sort="volume7d" class="num" title="Closed sales of the set in the last week">7d</th>
+          <th data-sort="pricedAt" class="num">Priced</th>
+        </tr>
+      </thead>
+      <tbody id="setRows"></tbody>
+    </table>
+    <div id="setEmpty" class="empty" hidden></div>
+  </div>
+
+
+  <div class="wrap" id="panel-relics" hidden>
+    <div class="controls">
+      <input id="relicFilter" type="search" placeholder="Filter relics..." autocomplete="off">
+      <label class="check"><input id="relicMine" type="checkbox" checked> Only relics I hold</label>
+      <label class="check"><input id="relicFarmable" type="checkbox"> Only farmable</label>
+      <label class="check"><input id="relicWanted" type="checkbox"> Only ones that finish a set</label>
+      <span id="relicStatus" class="status"></span>
+    </div>
+
+    <table id="relicGrid">
+      <thead>
+        <tr>
+          <th data-sort="name">Relic</th>
+          <th data-sort="held" class="num" title="How many you hold, counting every refinement. Hover for the breakdown.">Yours</th>
+          <th data-sort="sells" class="num" title="What the unopened relic changes hands for - the weekly median, or the top live buy order. Sell above the opened value and the relic is worth more unopened.">Sells for</th>
+          <th data-sort="platIntact" class="num" title="Chance-weighted value of one drop, opened Intact, valuing each reward at what it trades at.">Plat intact</th>
+          <th data-sort="platRadiant" class="num" title="The same, opened Radiant. Refining moves probability from the commons to the rare, so a relic whose rare is the only valuable reward gains a lot and one with an expensive common gains almost nothing.">Plat radiant</th>
+          <th data-sort="radshare" class="num" title="Four players open the same Radiant relic and everyone takes the best drop. This is the expected maximum of four draws, not four times the average.">Radshare</th>
+          <th data-sort="ducatIntact" class="num" title="Chance-weighted ducats of one drop, opened Intact. The number that matters for relics full of cheap parts.">Ducats</th>
+          <th data-sort="best" title="The most valuable thing in the relic, and how often it drops Intact">Best drop</th>
+          <th data-sort="finishes" title="Rewards that would finish a set you are short of">Finishes</th>
+          <th data-sort="pricedAt" class="num">Priced</th>
+        </tr>
+      </thead>
+      <tbody id="relicRows"></tbody>
+    </table>
+    <div id="relicEmpty" class="empty" hidden></div>
+  </div>
+
+  <div class="wrap" id="panel-syndicates" hidden>
+    <div class="controls">
+      <div class="combo">
+        <button id="vendorButton" class="combo-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span id="vendorLabel">Choose a vendor</span>
+          <span class="caret">&#9662;</span>
+        </button>
+        <input id="vendor" type="hidden">
+        <div id="vendorPanel" class="combo-list" hidden>
+          <input id="vendorSearch" type="text" class="combo-search" placeholder="Search vendors..."
+                 autocomplete="off" spellcheck="false">
+          <div id="vendorList"></div>
+        </div>
+      </div>
+      <button id="vendorFav" class="star" title="Keep this vendor at the top of the list">&#9734;</button>
+      <input id="offerFilter" type="search" placeholder="Filter offerings..." autocomplete="off">
+      <label class="check">Min 7d sales <input id="offerMinVol" type="number" value="1" min="0"></label>
+      <label class="check">Min price <input id="offerMinPrice" type="number" value="0" min="0"></label>
+      <label class="check" title="Hide rows where more than this many online sellers already ask less than your post price. 0 means no limit.">Max cheaper
+        <input id="offerMaxAhead" type="number" value="0" min="0">
+      </label>
+      <label class="check"><input id="offerTradeable" type="checkbox" checked> Tradeable only</label>
+      <span id="offerStatus" class="status"></span>
+    </div>
+
+    <section class="rule">
+      <span class="rule-label">Post price
+        <span class="help" tabindex="0" data-tip="Sets the Post at column for every row. Lowest live sell tracks whoever is cheapest right now, so adjust by 0 matches them and -1 undercuts. Median sale is what the mod actually trades at, which ignores a single lowballer. Top buy order sells fastest and lowest.">?</span>
+      </span>
+      <select id="ruleBasis">
+        <option value="sell" selected>Lowest live sell</option>
+        <option value="median7d">Median sale</option>
+        <option value="buy">Top buy order</option>
+        <option value="fixed">A fixed price</option>
+      </select>
+      <label class="check" id="ruleAdjustLabel">adjust by
+        <input id="ruleAdjust" type="number" value="0" step="1"> plat
+      </label>
+      <label class="check" id="ruleFixedLabel" hidden>at <input id="ruleFixed" type="number" value="15" min="1"> plat</label>
+      <label class="check">Qty each <input id="ruleQty" type="number" value="1" min="1" max="9999"></label>
+    </section>
+
+    <div class="actionbar">
+      <span id="offerActions"></span>
+      <button id="postAll" class="danger">Post</button>
+      <button id="removeListed">Remove listings</button>
+      <label class="check"><input id="offerExtras" type="checkbox"> More columns</label>
+    </div>
+
+    <table id="offerGrid">
+      <thead>
+        <tr>
+          <th data-sort="name">Offering</th>
+          <th data-sort="type" data-extra>Type</th>
+          <th data-sort="reqRank" class="num" title="Syndicate rank that unlocks this. Nothing to do with mod rank, which is always 0 here.">Rank</th>
+          <th data-sort="cost" class="num" data-extra>Cost</th>
+          <th data-sort="count" class="num" data-extra>Qty</th>
+          <th data-sort="listed" class="num" title="What you currently have this listed at on warframe.market">Yours</th>
+          <th data-sort="postAt" class="num" title="What the rule above would list this at. This is the preview - these are the exact prices Post would use.">Post at</th>
+          <th data-sort="sell" class="num" title="Cheapest online seller right now">Lowest sell</th>
+          <th data-sort="ahead" class="num" title="How many online sellers ask less than your post price. 0 means you would be cheapest.">Cheaper</th>
+          <th data-sort="buy" class="num" title="Highest online buyer right now">Top buy</th>
+          <th data-sort="median7d" class="num">7d median</th>
+          <th data-sort="volume7d" class="num">7d sales</th>
+          <th data-sort="median90d" class="num" data-extra>90d median</th>
+          <th data-sort="owned" class="num" data-extra>Owned</th>
+          <th data-sort="value" class="num" data-extra title="What one purchase is worth: unit price times the stack you get">Value</th>
+          <th data-sort="perThousand" class="num" title="Plat per 1,000 standing - the real ranking when standing is what you are short of">Per 1k</th>
+          <th data-sort="pricedAt" class="num" title="When this row's prices were last fetched. Sort by it to find what has gone stale.">Priced</th>
+        </tr>
+      </thead>
+      <tbody id="offerRows"></tbody>
+    </table>
+    <div id="offerEmpty" class="empty" hidden></div>
+  </div>
+
+  <div class="wrap" id="panel-account" hidden>
+    <section class="card">
+      <h2>warframe.market</h2>
+      <form class="signin" id="signInForm" autocomplete="off">
+        <label class="field">
+          <span>Email</span>
+          <input id="signInEmail" type="email" autocomplete="username" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="signInPassword" type="password" autocomplete="current-password">
+        </label>
+        <div class="actions">
+          <button type="submit" id="signIn">Sign in</button>
+          <button type="button" id="clearToken">Sign out</button>
+        </div>
+      </form>
+      <div id="tokenStatus" class="status"></div>
+
+      <details id="tokenAdvanced">
+        <summary>Paste a token instead</summary>
+        <p class="note">
+          Sign in at warframe.market in a browser, open DevTools with F12 and copy the JWT
+          cookie. Signing out of that browser session revokes it.
+        </p>
+        <div class="controls">
+          <input id="tokenInput" type="password" placeholder="paste token" autocomplete="off">
+          <button id="saveToken">Save</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="controls">
+        <h2>My live orders</h2>
+        <button id="reloadOrders">Refresh</button>
+        <span id="orderCount" class="status"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Type</th>
+            <th class="num">Plat</th>
+            <th class="num">Qty</th>
+            <th class="num">Rank</th>
+            <th title="warframe.market hides a lister's orders after seven days without signing in. This says whether the site is still showing them.">Visible</th>
+          </tr>
+        </thead>
+        <tbody id="orderRows"></tbody>
+      </table>
+      <div id="orderEmpty" class="empty" hidden></div>
+    </section>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

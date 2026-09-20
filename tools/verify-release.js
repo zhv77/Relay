@@ -1,0 +1,24 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const assert = require('node:assert/strict');
+const yaml = require('js-yaml');
+const folder = process.argv[2] || path.resolve(__dirname, '../dist');
+const version = require('../package.json').version;
+const filename = `Warframe-Trader-Setup-${version}-x64.exe`;
+const metadata = yaml.load(fs.readFileSync(path.join(folder, 'latest.yml'), 'utf8'));
+assert.equal(metadata.version, version);
+assert.equal(metadata.files.length, 1);
+assert.equal(metadata.files[0].url, filename);
+assert.equal(metadata.path, filename);
+const binary = fs.readFileSync(path.join(folder, filename));
+assert.ok(binary.length > 10 * 1024 * 1024);
+assert.equal(metadata.files[0].size, binary.length);
+const hash = crypto.createHash('sha512').update(binary).digest('base64');
+assert.equal(metadata.files[0].sha512, hash);
+assert.equal(metadata.sha512, hash);
+assert.ok(fs.statSync(path.join(folder, `${filename}.blockmap`)).size > 0);
+assert.equal(fs.readFileSync(path.join(folder, 'SHA256SUMS.txt'), 'utf8').trim(),
+  `${crypto.createHash('sha256').update(binary).digest('hex')}  ${filename}`);
+console.log(`Release ${version} verified.`);

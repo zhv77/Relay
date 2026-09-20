@@ -1,0 +1,36 @@
+appId: com.zhv.warframe-trader
+productName: Warframe Trader
+copyright: Copyright © 2026 zhv
+directories:
+  output: dist
+asar: true
+asarUnpack:
+  - node_modules/koffi/**
+npmRebuild: false
+files:
+  - src/**/*.js
+  - renderer/*.html
+  - renderer/*.js
+  - package.json
+  - '!src/probe.js'
+  - '!**/*.map'
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Warframe-Trader-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Warframe Trader
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: zhv77
+  repo: warframe-trader-releases
+  releaseType: release

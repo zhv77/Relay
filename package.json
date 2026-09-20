@@ -1,0 +1,26 @@
+{
+  "name": "warframe-trader",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Relay desktop companion for Warframe inventory and trading",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "probe": "node src/probe.js",
+    "test": "node test/inventory.test.js && node test/updates.test.js",
+    "test:ui": "electron test/inventory-ui.js",
+    "build:win": "electron-builder --config electron-builder.yml --win nsis --x64 --publish never && node tools/verify-package.js",
+    "serve": "node server/index.js"
+  },
+  "author": "zhv",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "koffi": "^2.9.0",
+    "ws": "^8.21.3"
+  }
+}

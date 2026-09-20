@@ -1,0 +1,10 @@
+node_modules/
+dist/
+scratch/
+data/
+probe/dumps/
+.env
+config.local.json
+account.json
+prices.json
+*.log
