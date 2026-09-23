@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '..');
 const resources = path.join(root, 'dist/win-unpacked/resources');
 const archive = path.join(resources, 'app.asar');
 const files = asar.listPackage(archive).map((file) => file.replaceAll('\\', '/').replace(/^\//, ''));
-const allowed = /^(src\/[^/]+\.js|renderer\/(index\.html|renderer\.js)|package\.json|node_modules(?:\/.*)?|src|renderer)$/;
+const allowed = /^(src\/[^/]+\.js|renderer\/(index\.html|overlay\.html|renderer\.js)|package\.json|node_modules(?:\/.*)?|src|renderer)$/;
 for (const file of files) {
   assert.ok(allowed.test(file), `Unexpected packaged file: ${file}`);
   assert.ok(!/(^|\/)(\.env(?:\..*)?|config\.local\.json|account\.json|prices\.json|entries\.json|capture\.json|mission-capture\.json)$/.test(file), `Personal data in package: ${file}`);
@@ -21,7 +21,7 @@ for (const file of ['src/main.js', 'src/inventory-worker.js', 'src/preload.js', 
 }
 assert.ok(files.some((file) => /node_modules\/koffi\/.*win32_x64.*\.node$/.test(file)), 'Missing Windows inventory-reader native module');
 const version = require('../package.json').version;
-const filename = `Warframe-Trader-Setup-${version}-x64.exe`;
+const filename = `Relay-Setup-${version}-x64.exe`;
 const installer = path.join(root, 'dist', filename);
 assert.ok(fs.statSync(installer).size > 10 * 1024 * 1024, 'Installer is incomplete (possibly an intermediate uninstaller helper)');
 const digest = crypto.createHash('sha256').update(fs.readFileSync(installer)).digest('hex');
@@ -30,6 +30,6 @@ console.log(`Package verified: app files and runtime dependencies only. Installe
 const config = require('js-yaml').load(fs.readFileSync(path.join(resources, 'app-update.yml'), 'utf8'));
 assert.equal(config.provider, 'github');
 assert.equal(config.owner, 'zhv77');
-assert.equal(config.repo, 'warframe-trader-releases');
+assert.equal(config.repo, 'Relay');
 assert.ok(!config.token && !config.private, 'Public updates must not contain credentials');
 require('./verify-release');

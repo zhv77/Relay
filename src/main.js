@@ -3,12 +3,20 @@
 // Electron shell.
 
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell, Tray } = require('electron');
 const packageCheck = process.argv.includes('--package-check');
-// Preserve each user's settings across installer updates and product naming.
-app.setPath('userData', packageCheck
-  ? path.join(require('node:os').tmpdir(), `warframe-trader-package-check-${process.pid}`)
-  : path.join(app.getPath('appData'), 'warframe-trader'));
+// Fixed folder so settings survive updates; carries over data from the old name.
+const userData = packageCheck
+  ? path.join(require('node:os').tmpdir(), `relay-package-check-${process.pid}`)
+  : path.join(app.getPath('appData'), 'relay');
+if (!packageCheck) {
+  const fs = require('node:fs');
+  const legacy = path.join(app.getPath('appData'), 'warframe-trader');
+  if (!fs.existsSync(userData) && fs.existsSync(legacy)) {
+    try { fs.cpSync(legacy, userData, { recursive: true }); } catch {}
+  }
+}
+app.setPath('userData', userData);
 
 const holdings = require('./holdings');
 const vendorViews = require('./vendors');
@@ -24,7 +32,7 @@ const { GameLog } = require('./eelog');
 const relics = require('./relics');
 const market = require('./market');
 
-// Off unless WFT_WATCH is set.
+// Off unless RELAY_WATCH is set.
 require('./watch').start(ipcMain);
 
 // Reading takes a second and a half, and the answer only changes when the game syncs.
@@ -41,6 +49,9 @@ let cached = null;
 let scanning = null;
 let rescanRequested = false;
 let mainWindow = null;
+let tray = null;
+// Closing the window only hides it to the tray; this is set once the app really quits.
+let quitting = false;
 let updateTimer;
 let account = null;
 let presence = null;
@@ -48,6 +59,7 @@ let store = null;
 let fetcher = null;
 let vendors = null;
 let voidData = null;
+let overlay = null;
 
 let listings = new Map();
 let listingsAt = 0;
@@ -128,7 +140,7 @@ function createWindow() {
     width: 1280,
     height: 860,
     backgroundColor: '#111317',
-    title: 'Warframe Trader',
+    title: 'Relay',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -137,7 +149,29 @@ function createWindow() {
   });
   window.removeMenu();
   window.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  window.on('close', (event) => {
+    if (quitting || !tray) return;
+    event.preventDefault();
+    window.hide();
+  });
   return window;
+}
+
+// Keeps Relay, and the in-game overlay, running while its window is closed.
+async function createTray(window) {
+  const show = () => {
+    if (window.isDestroyed()) return;
+    window.show();
+    window.focus();
+  };
+  tray = new Tray(await app.getFileIcon(process.execPath, { size: 'small' }));
+  tray.setToolTip('Relay');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Relay', click: show },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() },
+  ]));
+  tray.on('click', show);
 }
 
 ipcMain.handle('holdings:read', (_event, options) => readHoldings(options || {}));
@@ -306,6 +340,7 @@ app.whenReady().then(async () => {
   // Created before the fetcher, which reports progress into it.
   const window = createWindow();
   mainWindow = window;
+  if (!smoke) createTray(window).catch(() => {});
 
   fetcher = new Fetcher(store, {
     onProgress: (state) => {
@@ -347,6 +382,16 @@ app.whenReady().then(async () => {
     refreshHoldings({ afterCurrent: true });
   });
   gameLog.start();
+
+  // Off unless RELAY_OVERLAY is set; "debug" also keeps screenshots.
+  if (process.env.RELAY_OVERLAY) {
+    overlay = require('./overlay').start({
+      pid: () => scanner.pid(),
+      folder: path.join(app.getPath('userData'), 'captures'),
+      debug: process.env.RELAY_OVERLAY === 'debug',
+    });
+    window.on('closed', () => overlay.stop());
+  }
 
   const waitForSync = setInterval(() => {
     if (!lastPid) return;
@@ -774,13 +819,21 @@ async function refreshCatalogue() {
   pushCatalogue();
 }
 
-app.on('before-quit', () => {
+let stopped = false;
+app.on('before-quit', (event) => {
+  quitting = true;
+  if (stopped) return;
+  stopped = true;
   clearInterval(updateTimer);
   presence?.stop();
   fetcher?.stop();
   store?.close();
-  scanner.stop();
   gameLog?.stop();
+  overlay?.stop();
+  tray?.destroy();
+  // Quit again once any memory read in progress has finished.
+  event.preventDefault();
+  scanner.drain().finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {

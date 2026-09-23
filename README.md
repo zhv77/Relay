@@ -14,7 +14,7 @@ Inventory recovery can be incomplete because the game keeps the source data in m
 
 ## Install
 
-1. Download the latest Windows ZIP from [Releases](https://github.com/zhv77/warframe-trader-releases/releases/latest).
+1. Download the latest Windows ZIP from [Releases](https://github.com/zhv77/Relay/releases/latest).
 2. Extract the ZIP.
 3. Run the setup executable.
 

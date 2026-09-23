@@ -33,4 +33,5 @@ contextBridge.exposeInMainWorld('warframe', {
   signIn: (email, password) => ipcRenderer.invoke('account:signIn', email, password),
   postOrders: (orders) => ipcRenderer.invoke('orders:post', orders),
   removeOrders: (ids) => ipcRenderer.invoke('orders:remove', ids),
+  onOverlay: (handler) => ipcRenderer.on('overlay:state', (_event, state) => handler(state)),
 });

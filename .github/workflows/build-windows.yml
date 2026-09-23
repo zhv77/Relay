@@ -30,7 +30,7 @@ jobs:
       - name: Check packaged app
         shell: pwsh
         run: |
-          $installerApp = Join-Path $PWD 'dist/win-unpacked/Warframe Trader.exe'
+          $installerApp = Join-Path $PWD 'dist/win-unpacked/Relay.exe'
           $checkProcess = Start-Process -FilePath $installerApp -ArgumentList '--package-check' -WindowStyle Hidden -PassThru
           if (-not $checkProcess.WaitForExit(60000)) {
             Stop-Process -Id $checkProcess.Id
@@ -39,9 +39,9 @@ jobs:
           if ($checkProcess.ExitCode -ne 0) { throw "Packaged app check failed: $($checkProcess.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
-          name: Warframe-Trader-Windows-${{ github.run_number }}
+          name: Relay-Windows-${{ github.run_number }}
           path: |
-            dist/Warframe-Trader-Setup-*-x64.exe
+            dist/Relay-Setup-*-x64.exe
             dist/SHA256SUMS.txt
             dist/latest.yml
             dist/*.blockmap

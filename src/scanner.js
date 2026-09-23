@@ -41,6 +41,7 @@ class Scanner {
   }
 
   request(index, payload) {
+    if (this.draining) return Promise.reject(new Error('Inventory scanner stopped'));
     const slot = this.ensure(index), id = this.nextId++;
     return new Promise((resolve, reject) => {
       slot.waiting.set(id, { resolve, reject });
@@ -89,6 +90,16 @@ class Scanner {
       workers: this.workerCount, tookMs: Date.now() - started, at: Date.now() };
   }
 
+  // Lets reads in progress finish first: terminating a worker mid-read aborts the whole process.
+  async drain(timeoutMs = 3000) {
+    this.draining = true;
+    const until = Date.now() + timeoutMs;
+    while (this.workers.some((slot) => slot?.waiting.size) && Date.now() < until) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    this.stop();
+  }
+
   stop() {
     for (const slot of this.workers) {
       if (!slot) continue;
@@ -103,4 +114,4 @@ class Scanner {
 
 const scanner = new Scanner();
 module.exports = { Scanner, scan: () => scanner.scan(), pid: () => scanner.pid(),
-  warm: () => scanner.warm(), stop: () => scanner.stop() };
+  warm: () => scanner.warm(), stop: () => scanner.stop(), drain: () => scanner.drain() };

@@ -193,6 +193,35 @@ async function stats(slug) {
   };
 }
 
+// Weapons that take rivens, with disposition.
+async function rivenWeapons() {
+  const body = await request('/v2/riven/weapons');
+  return (body.data || []).map((w) => ({
+    slug: w.slug, name: w.i18n?.en?.name || w.slug, type: w.rivenType, disposition: w.disposition,
+  }));
+}
+
+// Riven stats with their in-game names.
+async function rivenAttributes() {
+  const body = await request('/v2/riven/attributes');
+  return (body.data || []).map((a) => ({ slug: a.slug, name: a.i18n?.en?.name || a.slug, unit: a.unit || null }));
+}
+
+// Buyout riven auctions for a weapon that have all the given positive stats, cheapest first.
+async function rivenAuctions(weapon, positives) {
+  const query = new URLSearchParams({ type: 'riven', weapon_url_name: weapon, buyout_policy: 'direct', sort_by: 'price_asc' });
+  if (positives.length) query.set('positive_stats', positives.join(','));
+  const body = await request(`/v1/auctions/search?${query}`);
+  return (body.payload?.auctions || []).filter((a) => a.visible && !a.closed).map((a) => ({
+    price: a.buyout_price,
+    online: a.owner?.status === 'ingame' || a.owner?.status === 'online',
+    seller: a.owner?.ingame_name,
+    rank: a.item.mod_rank,
+    rerolls: a.item.re_rolls,
+    stats: a.item.attributes.map((s) => ({ slug: s.url_name, value: s.value, positive: s.positive })),
+  }));
+}
+
 function median(values) {
   const list = values.filter((v) => typeof v === 'number').sort((a, b) => a - b);
   if (!list.length) return null;
@@ -206,4 +235,4 @@ function sum(values) {
 
 const ICONS = 'https://warframe.market/static/assets/';
 
-module.exports = { items, book, stats, limiter, ICONS, useToken, hasToken, NoTokenError, AGENT, RATE };
+module.exports = { items, book, stats, rivenWeapons, rivenAttributes, rivenAuctions, median, limiter, ICONS, useToken, hasToken, NoTokenError, AGENT, RATE };

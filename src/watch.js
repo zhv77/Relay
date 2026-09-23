@@ -3,7 +3,7 @@
 // Says when the main process stopped answering, and what it was doing.
 
 const STEP_MS = 100;
-const REPORT_MS = Number(process.env.WFT_WATCH_MS || 150);
+const REPORT_MS = Number(process.env.RELAY_WATCH_MS || 150);
 
 let open = new Set();
 
@@ -39,7 +39,7 @@ function watchLoop() {
 }
 
 function start(ipcMain) {
-  if (!process.env.WFT_WATCH) return false;
+  if (!process.env.RELAY_WATCH) return false;
   watchIpc(ipcMain);
   watchLoop();
   return true;

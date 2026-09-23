@@ -7,7 +7,7 @@ const market = require('./market');
 const MINUTE = 60 * 1000;
 
 // What "fresh" means for something you are looking at.
-const FOCUS_FRESH_MS = Number(process.env.WFT_FOCUS_MS || 2 * MINUTE);
+const FOCUS_FRESH_MS = Number(process.env.RELAY_FOCUS_MS || 2 * MINUTE);
 
 // The background sweep, by how much an item trades.
 const TIERS = [
@@ -18,7 +18,7 @@ const TIERS = [
 ];
 
 // Closed sales over seven and ninety days move in days, not minutes.
-const STATS_MS = Number(process.env.WFT_STATS_MS || 24 * 60 * MINUTE);
+const STATS_MS = Number(process.env.RELAY_STATS_MS || 24 * 60 * MINUTE);
 
 function tierFor(volume) {
   const amount = volume ?? 0;

@@ -1,5 +1,5 @@
-appId: com.zhv.warframe-trader
-productName: Warframe Trader
+appId: com.zhv.relay
+productName: Relay
 copyright: Copyright © 2026 zhv
 directories:
   output: dist
@@ -19,7 +19,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: Warframe-Trader-Setup-${version}-${arch}.${ext}
+  artifactName: Relay-Setup-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   perMachine: false
@@ -27,10 +27,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Warframe Trader
+  shortcutName: Relay
   deleteAppDataOnUninstall: false
 publish:
   provider: github
   owner: zhv77
-  repo: warframe-trader-releases
+  repo: Relay
   releaseType: release

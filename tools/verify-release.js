@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const yaml = require('js-yaml');
 const folder = process.argv[2] || path.resolve(__dirname, '../dist');
 const version = require('../package.json').version;
-const filename = `Warframe-Trader-Setup-${version}-x64.exe`;
+const filename = `Relay-Setup-${version}-x64.exe`;
 const metadata = yaml.load(fs.readFileSync(path.join(folder, 'latest.yml'), 'utf8'));
 assert.equal(metadata.version, version);
 assert.equal(metadata.files.length, 1);
