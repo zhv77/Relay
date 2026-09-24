@@ -48,6 +48,19 @@ test('UTF-16 records at odd byte offsets and UTF-8 records', () => {
   inventory.entriesInBuffer(buffer, items, conflicts);
   assert.deepEqual(items, { [A]: 7, [B]: 9 });
 });
+test('mastery rank and total points are recovered from profile copies', () => {
+  const candidates = {};
+  inventory.masteryInBuffer(Buffer.concat([
+    Buffer.from('{"PlayerLevel":12,"PlayerXp":373720}'),
+    Buffer.from('{"PlayerLevel":12,"PlayerXp":373720}', 'utf16le'),
+  ]), candidates);
+  const base = { items: {}, conflicts: [], scannedBytes: 1, unreadableBytes: 0, hot: [] };
+  const result = inventory.combine([
+    { ...base, masteryCandidates: candidates },
+    { ...base, masteryCandidates: { '8:160000': 1 } },
+  ]);
+  assert.deepEqual(result.mastery, { rank: 12, xp: 373720 });
+});
 test('records spanning chunks and adjacent memory regions survive', () => {
   const buffer = Buffer.from('x'.repeat(220) + record() + '\0'.repeat(300));
   const tasks = inventory.makeTasks([{ base: 0n, size: 250, type: 1 }, { base: 250n, size: buffer.length - 250, type: 1 }], 256);

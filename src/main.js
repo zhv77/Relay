@@ -175,6 +175,7 @@ async function createTray(window) {
 }
 
 ipcMain.handle('holdings:read', (_event, options) => readHoldings(options || {}));
+ipcMain.handle('mastery:read', () => holdings.mastery());
 ipcMain.handle('fetch:progress', () => fetcher.progress());
 ipcMain.handle('catalogue:status', () => catalogueStatus());
 
@@ -383,15 +384,12 @@ app.whenReady().then(async () => {
   });
   gameLog.start();
 
-  // Off unless RELAY_OVERLAY is set; "debug" also keeps screenshots.
-  if (process.env.RELAY_OVERLAY) {
-    overlay = require('./overlay').start({
-      pid: () => scanner.pid(),
-      folder: path.join(app.getPath('userData'), 'captures'),
-      debug: process.env.RELAY_OVERLAY === 'debug',
-    });
-    window.on('closed', () => overlay.stop());
-  }
+  overlay = require('./overlay').start({
+    pid: () => scanner.pid(),
+    folder: path.join(app.getPath('userData'), 'captures'),
+    debug: process.env.RELAY_OVERLAY === 'debug',
+  });
+  window.on('closed', () => overlay.stop());
 
   const waitForSync = setInterval(() => {
     if (!lastPid) return;
@@ -650,11 +648,6 @@ app.whenReady().then(async () => {
                 await new Promise((r) => setTimeout(r, 300));
                 applyCatalogue(state);
                 out.relics = read('relicStatus');
-                document.querySelector('.tab[data-tab="holdings"]').click();
-                applyCatalogue(state);
-                out.holdingsEmpty = (() => {
-                  return catalogueMessage();
-                })();
                 document.querySelector('.tab[data-tab="sets"]').click();
                 await new Promise((r) => setTimeout(r, 300));
                 applyCatalogue(state);

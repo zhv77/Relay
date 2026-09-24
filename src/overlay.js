@@ -30,6 +30,8 @@ const INTERVAL_MS = 1500;
 // Visibility is checked more often, so the panels leave quickly when something covers the game.
 const VISIBILITY_MS = 250;
 const KEEP = 5;
+const CAPTURE_MAX_AGE_MS = 60 * 60 * 1000;
+const CLEANUP_MS = 5 * 60 * 1000;
 // Frames without a riven before the panel hides, so one misread does not blink it away.
 const MISSES_TO_HIDE = 2;
 // Summary in the empty space left of the riven cards, trait table on the right, on a 1920x1080 game.
@@ -246,6 +248,7 @@ function createPanel(name) {
 // With debug on, recent screenshots are kept in the folder for tuning.
 function start({ pid, folder, debug }) {
   if (debug) fs.mkdirSync(folder, { recursive: true });
+  cleanup(folder);
   const panels = Object.fromEntries(Object.keys(PANELS).map((name) => [name, createPanel(name)]));
   const each = (fn) => Object.entries(panels).forEach(([name, panel]) => !panel.isDestroyed() && fn(panel, name));
   const hide = () => each((panel) => panel.isVisible() && panel.hide());
@@ -307,10 +310,13 @@ function start({ pid, folder, debug }) {
   const watcher = setInterval(() => {
     try { place(); } catch (error) { if (debug) console.log(`overlay: ${error.message}`); }
   }, VISIBILITY_MS);
+  const cleaner = setInterval(() => cleanup(folder), CLEANUP_MS);
+  cleaner.unref?.();
   return {
     stop() {
       clearInterval(timer);
       clearInterval(watcher);
+      clearInterval(cleaner);
       each((panel) => panel.destroy());
       reader?.then((worker) => worker.terminate()).catch(() => {});
       reader = null;
@@ -328,8 +334,25 @@ async function keep(folder, at, png, found) {
 }
 
 function prune(folder, prefix) {
-  const shots = fs.readdirSync(folder).filter((f) => f.startsWith(`${prefix}-`) && f.endsWith('.png')).sort();
-  for (const old of shots.slice(0, -KEEP)) fs.rmSync(path.join(folder, old), { force: true });
+  let shots;
+  try {
+    shots = fs.readdirSync(folder).filter((f) => f.startsWith(`${prefix}-`) && f.endsWith('.png')).sort();
+  } catch { return; }
+  const cutoff = Date.now() - CAPTURE_MAX_AGE_MS;
+  const recent = [];
+  for (const shot of shots) {
+    const file = path.join(folder, shot);
+    try {
+      if (fs.statSync(file).mtimeMs < cutoff) fs.rmSync(file, { force: true });
+      else recent.push(shot);
+    } catch {}
+  }
+  for (const old of recent.slice(0, -KEEP)) fs.rmSync(path.join(folder, old), { force: true });
+}
+
+function cleanup(folder) {
+  prune(folder, 'shot');
+  prune(folder, 'riven');
 }
 
 module.exports = { start };

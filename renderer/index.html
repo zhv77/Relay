@@ -299,6 +299,11 @@
     td.good, span.good { color: var(--good); }
     td.path { color: var(--muted); font-size: 12px; }
     .empty { color: var(--muted); padding: 30px 0; }
+    .mastery-card { max-width: 620px; padding: 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+    .mastery-rank { font-size: 32px; font-weight: 700; margin: 8px 0 20px; }
+    .mastery-progress { height: 10px; overflow: hidden; border-radius: 999px; background: var(--line); }
+    .mastery-progress > div { height: 100%; background: #4f9ad8; }
+    .mastery-detail { display: flex; justify-content: space-between; gap: 20px; margin-top: 10px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -326,35 +331,14 @@
   </div>
 
   <nav class="tabs">
-    <button class="tab active" data-tab="holdings">Holdings</button>
-    <button class="tab" data-tab="sets">Sets</button>
+    <button class="tab active" data-tab="sets">Sets</button>
     <button class="tab" data-tab="relics">Relics</button>
+    <button class="tab" data-tab="mastery">Mastery</button>
     <button class="tab" data-tab="syndicates">Syndicates</button>
     <button class="tab" data-tab="account">Account</button>
   </nav>
 
-  <div class="wrap" id="panel-holdings">
-    <div class="controls">
-      <input id="filter" type="search" placeholder="Filter items..." autocomplete="off">
-      <label class="check"><input id="tradeable" type="checkbox" checked> Tradeable only</label>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th class="num">Owned</th>
-          <th class="num" title="Cheapest online seller right now">Sell</th>
-          <th class="num" title="Highest online buyer right now">Buy</th>
-          <th class="num" title="Closed sales in the last week">7d</th>
-          <th class="num">Value</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <div id="empty" class="empty" hidden></div>
-  </div>
-
-  <div class="wrap" id="panel-sets" hidden>
+  <div class="wrap" id="panel-sets">
     <div class="controls">
       <input id="setFilter" type="search" placeholder="Filter sets..." autocomplete="off">
       <label class="check">Missing at most <input id="setMaxMissing" type="number" value="0" min="0" max="9"></label>
@@ -384,6 +368,18 @@
       <tbody id="setRows"></tbody>
     </table>
     <div id="setEmpty" class="empty" hidden></div>
+  </div>
+
+  <div class="wrap" id="panel-mastery" hidden>
+    <div class="mastery-card">
+      <span id="masteryStatus" class="status">Reading mastery...</span>
+      <div id="masteryRank" class="mastery-rank"></div>
+      <div class="mastery-progress"><div id="masteryFill"></div></div>
+      <div class="mastery-detail">
+        <span id="masteryProgress"></span>
+        <span id="masteryTotal"></span>
+      </div>
+    </div>
   </div>
 
 

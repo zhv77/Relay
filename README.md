@@ -5,7 +5,7 @@ Relay is a Windows desktop companion for Warframe inventory and trading.
 ## Features
 
 - Reads inventory data locally from the running Warframe client using read-only access.
-- Shows owned items, set completion, relics, and syndicate offerings.
+- Shows mastery progress, set completion, relics, and syndicate offerings.
 - Uses warframe.market prices to compare sales, costs, and trading opportunities.
 - Reads and manages your own warframe.market orders after you sign in.
 - Keeps inventory snapshots locally and updates the app from public GitHub releases.

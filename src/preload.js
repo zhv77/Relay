@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('warframe', {
   updateAction: () => ipcRenderer.invoke('updates:act'),
   onUpdate: handler => ipcRenderer.on('updates:changed', (_event, state) => handler(state)),
   holdings: (options) => ipcRenderer.invoke('holdings:read', options),
+  mastery: () => ipcRenderer.invoke('mastery:read'),
   vendors: () => ipcRenderer.invoke('vendors:list'),
   vendorStock: (key, options) => ipcRenderer.invoke('vendors:stock', key, options),
   account: () => ipcRenderer.invoke('account:status'),

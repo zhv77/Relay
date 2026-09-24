@@ -2,12 +2,8 @@
 
 // The window.
 
-const rowsBody = document.getElementById('rows');
 const statusText = document.getElementById('status');
 const warnText = document.getElementById('warn');
-const emptyText = document.getElementById('empty');
-const filterBox = document.getElementById('filter');
-const tradeableOnly = document.getElementById('tradeable');
 const refreshButton = document.getElementById('refresh');
 const updateButton = document.getElementById('update');
 function showUpdate(state) {
@@ -22,8 +18,6 @@ function showUpdate(state) {
 window.warframe.onUpdate(showUpdate);
 window.warframe.updateState().then(showUpdate).catch(() => {});
 updateButton.addEventListener('click', () => window.warframe.updateAction().then(showUpdate).catch(() => {}));
-
-let rows = [];
 
 function briefInventoryWarning(warning) {
   return /^(Saved|Recovered) inventory\b/.test(warning || '')
@@ -63,59 +57,6 @@ function plat(value) {
   return value == null ? '' : `${value.toLocaleString()}p`;
 }
 
-function render() {
-  const needle = filterBox.value.trim().toLowerCase();
-  const onlyTradeable = tradeableOnly.checked;
-
-  const visible = rows
-    .filter((row) => !onlyTradeable || row.slug)
-    .filter((row) => !needle || row.name.toLowerCase().includes(needle));
-
-  emptyText.hidden = visible.length > 0;
-  if (!visible.length) {
-    emptyText.textContent = rows.length && onlyTradeable && !catalogueReady()
-      ? `${catalogueMessage()} Your ${rows.length.toLocaleString()} items are read - untick "Tradeable only" to see them now.`
-      : rows.length
-        ? 'Nothing matches that filter.'
-        : 'Nothing read yet.';
-    rowsBody.replaceChildren();
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  for (const row of visible.slice(0, 500)) {
-    const tr = document.createElement('tr');
-
-    const name = document.createElement('td');
-    name.textContent = row.name;
-    if (!row.slug) name.className = 'muted';
-
-    const count = document.createElement('td');
-    count.className = 'num';
-    count.textContent = row.count.toLocaleString();
-
-    const sell = document.createElement('td');
-    sell.className = 'num';
-    sell.textContent = plat(row.sell);
-
-    const buy = document.createElement('td');
-    buy.className = 'num dim';
-    buy.textContent = plat(row.buy);
-
-    const volume = document.createElement('td');
-    volume.className = 'num dim';
-    volume.textContent = row.volume7d == null ? '' : row.volume7d.toLocaleString();
-
-    const value = document.createElement('td');
-    value.className = 'num good';
-    value.textContent = plat(row.value);
-
-    tr.append(name, count, sell, buy, volume, value);
-    fragment.append(tr);
-  }
-  rowsBody.replaceChildren(fragment);
-}
-
 async function load({ force = false } = {}) {
   refreshButton.disabled = true;
   statusText.className = 'status';
@@ -133,17 +74,13 @@ async function load({ force = false } = {}) {
     if (!result.ok) {
       statusText.className = 'status bad';
       statusText.textContent = result.error;
-      rows = [];
     } else {
-      rows = result.rows;
-      const worth = rows.reduce((total, row) => total + (row.value || 0), 0);
-      // What you have and what it is worth.
       statusText.className = 'status' + (result.partial ? ' warn' : '');
       statusText.textContent = !catalogueReady()
         ? `${result.items.toLocaleString()} item types read - ${catalogueMessage()}`
         : result.partial
         ? `${result.items.toLocaleString()} item types · Estimated from your latest inventory scan`
-        : `${result.tradeable.toLocaleString()} tradeable items worth ${worth.toLocaleString()}p`;
+        : `${result.items.toLocaleString()} item types read`;
       statusText.title = result.warning || '';
       if (!catalogueReady()) {
         statusText.className = catalogueClass();
@@ -154,29 +91,52 @@ async function load({ force = false } = {}) {
       } else if (result.partial) {
         // The status already explains the limitation.
         warnText.hidden = true;
-      } else if (result.unpriced) {
-        warnText.hidden = false;
-        warnText.textContent =
-          `${result.unpriced} not priced yet - queued with the service, try again shortly`;
       }
     }
   } catch (error) {
     statusText.className = 'status bad';
     statusText.textContent = String(error.message || error);
-    rows = [];
   } finally {
     refreshButton.disabled = false;
-    render();
   }
 }
 
-filterBox.addEventListener('input', render);
-tradeableOnly.addEventListener('change', render);
 refreshButton.addEventListener('click', () => load({ force: true }));
 load();
 
 
 const el = (id) => document.getElementById(id);
+
+function masteryThreshold(rank) {
+  return rank <= 30 ? 2500 * rank * rank : 2250000 + 147500 * (rank - 30);
+}
+
+function masteryLabel(rank) {
+  return rank <= 30 ? `Mastery Rank ${rank}` : `Legendary Rank ${rank - 30}`;
+}
+
+async function loadMastery() {
+  const result = await window.warframe.mastery();
+  if (!result.ok) {
+    el('masteryStatus').className = 'status warn';
+    el('masteryStatus').textContent = result.error;
+    el('masteryRank').textContent = '';
+    el('masteryFill').style.width = '0%';
+    el('masteryProgress').textContent = '';
+    el('masteryTotal').textContent = '';
+    return;
+  }
+  const current = masteryThreshold(result.rank);
+  const next = masteryThreshold(result.rank + 1);
+  const earned = Math.max(0, result.xp - current);
+  const needed = Math.max(1, next - current);
+  el('masteryStatus').className = 'status';
+  el('masteryStatus').textContent = 'Account mastery';
+  el('masteryRank').textContent = masteryLabel(result.rank);
+  el('masteryFill').style.width = `${Math.min(100, earned / needed * 100)}%`;
+  el('masteryProgress').textContent = `${earned.toLocaleString()} / ${needed.toLocaleString()} to ${masteryLabel(result.rank + 1)}`;
+  el('masteryTotal').textContent = `${result.xp.toLocaleString()} total`;
+}
 
 const syn = {
   rows: [],
@@ -1215,11 +1175,9 @@ function applyCatalogue(status) {
     if (panel('sets')) loadSets({ focus: true });
     if (panel('relics')) loadRelics();
     if (panel('syndicates')) loadStock();
-    if (panel('holdings')) load();
     return;
   }
   // Still not there: redraw so the message is current.
-  if (panel('holdings')) render();
   if (panel('sets')) renderSets();
   if (panel('relics')) renderRelics();
   if (panel('syndicates') && syn.rows.length) {
@@ -1240,7 +1198,7 @@ window.warframe.onHoldings(() => {
   if (!document.getElementById('panel-sets').hidden) loadSets({ focus: false });
   if (!document.getElementById('panel-relics').hidden) loadRelics();
   if (!document.getElementById('panel-syndicates').hidden) refreshOfferPrices();
-  if (!document.getElementById('panel-holdings').hidden) load();
+  if (!document.getElementById('panel-mastery').hidden) loadMastery();
 });
 
 window.warframe.onPresence(renderPresence);
@@ -1590,16 +1548,18 @@ document.querySelectorAll('.tab').forEach((button) => {
     document.querySelectorAll('.tab').forEach((other) => other.classList.remove('active'));
     button.classList.add('active');
     const name = button.dataset.tab;
-    document.getElementById('panel-holdings').hidden = name !== 'holdings';
     document.getElementById('panel-sets').hidden = name !== 'sets';
     document.getElementById('panel-relics').hidden = name !== 'relics';
+    document.getElementById('panel-mastery').hidden = name !== 'mastery';
     document.getElementById('panel-syndicates').hidden = name !== 'syndicates';
     document.getElementById('panel-account').hidden = name !== 'account';
     if (name === 'sets') loadSets();
     if (name === 'relics') loadRelics();
+    if (name === 'mastery') loadMastery();
     if (name === 'syndicates') loadVendors();
     if (name === 'account') loadOrders();
   });
 });
 
 loadAccount();
+loadSets();

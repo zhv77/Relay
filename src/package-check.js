@@ -20,6 +20,7 @@ async function run({ app, BrowserWindow }) {
     } });
     await window.loadURL('data:text/html,<html><body>Package check</body></html>');
     assert.equal(await window.webContents.executeJavaScript('typeof window.warframe?.holdings'), 'function');
+    assert.equal(await window.webContents.executeJavaScript('typeof window.warframe?.mastery'), 'function');
     console.log('Packaged app check passed: native inventory worker and preload bridge loaded.');
     scanner.stop();
     window.destroy();

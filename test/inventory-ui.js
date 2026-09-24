@@ -28,6 +28,7 @@ const values = {
   'updates:act': () => ({ status: 'ready', currentVersion: '0.1.1', version: '0.1.2' }),
   'holdings:read': () => ({ ok: true, partial: true, stale: true, items: 1, tradeable: 1, warning,
     rows: [{ name: 'Test A', slug: 'test_a', count: 2 }] }),
+  'mastery:read': () => ({ ok: true, rank: 12, xp: 373720 }),
   'sets:read': () => sets.build({ owned: { test_a: 2 }, partial: true, warning }),
   'relics:read': () => relics.build({ paths: { '/Lotus/Test': 2 }, partial: true, warning }),
   'account:status': () => ({ hasToken: false }),
@@ -61,9 +62,16 @@ app.whenReady().then(async () => {
         near: set.classList.contains('near') };
       document.querySelector('.tab[data-tab="relics"]').click();
       await loadRelics();
+      document.querySelector('.tab[data-tab="mastery"]').click();
+      await loadMastery();
+      await new Promise((resolve) => setTimeout(resolve, 100));
       return { updateAvailable, updateReady, status: el('status').textContent, warning: el('status').title, duplicateHidden: el('warn').hidden,
         set: setState, relicStatus: el('relicStatus').textContent,
-        relicCount: document.querySelector('#relicRows tr').cells[1].textContent };
+        relicCount: document.querySelector('#relicRows tr').cells[1].textContent,
+        masteryRank: el('masteryRank').textContent, masteryProgress: el('masteryProgress').textContent,
+        holdingsTab: document.querySelector('.tab[data-tab="holdings"]'),
+        activeTab: document.querySelector('.tab.active').dataset.tab,
+        masteryHidden: el('panel-mastery').hidden };
     })()`);
     assert.match(result.status, /Estimated from your latest inventory scan/);
     assert.equal(result.updateAvailable, 'Preparing update…');
@@ -78,6 +86,11 @@ app.whenReady().then(async () => {
     assert.equal(result.set.near, true);
     assert.match(result.relicStatus, /Estimated from your latest inventory scan/);
     assert.equal(result.relicCount, '2');
+    assert.equal(result.masteryRank, 'Mastery Rank 12');
+    assert.match(result.masteryProgress, /13,720 \/ 62,500/);
+    assert.equal(result.holdingsTab, null);
+    assert.equal(result.activeTab, 'mastery');
+    assert.equal(result.masteryHidden, false);
     assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(root, 'relics.png'), (await window.webContents.capturePage()).toPNG());
     console.log('Inventory UI passed: simple counts, estimated completion costs, no renderer errors.');

@@ -33,6 +33,7 @@ async function read({ focus = false } = {}) {
     scanned = { ok: false, error: error.message };
   }
   const snapshot = snapshots.update(scanned);
+  if (scanned.mastery) store.putMeta('mastery', scanned.mastery, scanned.at);
   if (!snapshot) return { ok: false, partial: true, error: scanned.error || 'No intact inventory records found. Waiting for a login or sync.', rows: [] };
   const held = { ...scanned, ...snapshot };
   const age = snapshot.at ? new Date(snapshot.at).toLocaleString() : 'an unknown time';
@@ -115,4 +116,10 @@ async function read({ focus = false } = {}) {
   };
 }
 
-module.exports = { read, attach };
+function mastery() {
+  const saved = store?.getMeta('mastery');
+  if (!saved) return { ok: false, error: 'Mastery data will appear after Relay reads Warframe.' };
+  return { ok: true, ...saved.value, at: saved.at };
+}
+
+module.exports = { read, mastery, attach };

@@ -8,6 +8,9 @@ const PATH = /^\/Lotus\/[A-Za-z0-9_./-]+$/;
 const MARKERS = ['utf8', 'utf16le'].map((encoding) => ({
   encoding, bytes: Buffer.from('"ItemType"', encoding), width: encoding === 'utf16le' ? 2 : 1,
 }));
+const MASTERY_MARKERS = ['utf8', 'utf16le'].map((encoding) => ({
+  encoding, bytes: Buffer.from('"PlayerLevel":', encoding), width: encoding === 'utf16le' ? 2 : 1,
+}));
 
 function balanced(text, start, limit = MAX_ENTRY) {
   let depth = 0, inString = false, escaped = false;
@@ -84,6 +87,26 @@ function entriesInBuffer(buffer, items, conflicts) {
   return hits;
 }
 
+function masteryInBuffer(buffer, candidates = {}) {
+  for (const { encoding, bytes, width } of MASTERY_MARKERS) {
+    let cursor = 0;
+    while (true) {
+      const at = buffer.indexOf(bytes, cursor);
+      if (at < 0) break;
+      cursor = at + bytes.length;
+      const text = buffer.subarray(at, Math.min(buffer.length, at + 96 * width)).toString(encoding);
+      const match = text.match(/^"PlayerLevel":(\d+),"PlayerXp":(\d+)/);
+      if (!match) continue;
+      const rank = Number(match[1]), xp = Number(match[2]);
+      if (!Number.isSafeInteger(rank) || rank < 0 || rank > 100 ||
+          !Number.isSafeInteger(xp) || xp < 0) continue;
+      const key = `${rank}:${xp}`;
+      candidates[key] = (candidates[key] || 0) + 1;
+    }
+  }
+  return candidates;
+}
+
 function makeTasks(regions, chunkBytes = CHUNK_BYTES) {
   const ranges = [];
   for (const region of regions) {
@@ -116,7 +139,7 @@ function plan(pid) {
 }
 
 function scanTasks(client, tasks) {
-  const items = {}, conflicts = new Set(), hot = [];
+  const items = {}, conflicts = new Set(), hot = [], masteryCandidates = {};
   let scannedBytes = 0, unreadableBytes = 0;
   for (const task of tasks) {
     let offset = 0, tail = Buffer.alloc(0), hits = 0;
@@ -139,13 +162,14 @@ function scanTasks(client, tasks) {
       }
       const joined = tail.length ? Buffer.concat([tail, block]) : block;
       hits += entriesInBuffer(joined, items, conflicts);
+      masteryInBuffer(joined, masteryCandidates);
       scannedBytes += Math.min(block.length, Math.max(0, task.size - offset));
       offset += block.length;
       tail = Buffer.from(joined.subarray(-MAX_ENTRY * 2));
     }
     if (hits) hot.push(task.base.toString());
   }
-  return { items, conflicts: [...conflicts], scannedBytes, unreadableBytes, hot };
+  return { items, conflicts: [...conflicts], masteryCandidates, scannedBytes, unreadableBytes, hot };
 }
 
 function readTasks(pid, tasks) {
@@ -155,11 +179,20 @@ function readTasks(pid, tasks) {
 }
 
 function combine(results) {
-  const items = {}, conflicts = new Set(results.flatMap((r) => r.conflicts));
+  const items = {}, masteryCandidates = {}, conflicts = new Set(results.flatMap((r) => r.conflicts));
   for (const result of results) {
     for (const [path, count] of Object.entries(result.items)) addEntry(items, conflicts, path, count);
+    for (const [key, count] of Object.entries(result.masteryCandidates || {})) {
+      masteryCandidates[key] = (masteryCandidates[key] || 0) + count;
+    }
   }
+  const bestMastery = Object.entries(masteryCandidates).sort((a, b) => b[1] - a[1])[0];
+  const mastery = bestMastery ? (() => {
+    const [rank, xp] = bestMastery[0].split(':').map(Number);
+    return { rank, xp };
+  })() : null;
   return { items, count: Object.keys(items).length, conflicts: [...conflicts],
+    mastery,
     scannedBytes: results.reduce((n, r) => n + r.scannedBytes, 0),
     unreadableBytes: results.reduce((n, r) => n + r.unreadableBytes, 0),
     hot: results.flatMap((r) => r.hot), completeness: 'unverified', partial: true };
@@ -175,4 +208,4 @@ function read() {
 }
 
 module.exports = { read, plan, readTasks, scanTasks, makeTasks, combine, entriesIn,
-  entriesInBuffer, balanced, validEntry, MAX_ENTRY };
+  entriesInBuffer, masteryInBuffer, balanced, validEntry, MAX_ENTRY };
